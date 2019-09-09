@@ -12,8 +12,8 @@ Created on Sat Jun  1 14:46:48 2019
 import spacy
 import requests
 import bs4
-import nltk
 from nltk import sent_tokenize
+from nltk.stem.snowball import SnowballStemmer
 nltk.download('vader_lexicon')
 from nltk.sentiment.vader import SentimentIntensityAnalyzer as SIA
 import os
@@ -26,7 +26,6 @@ import json
 
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 
 os.chdir("/Users/alliesaizan/Documents/Python-Tinkering/Pudding")
 
@@ -103,12 +102,29 @@ def find_verbs(doc):
     millennials are the subject of the sentence.
     """
     verbs = [i.lemma_ for i in doc if i.pos_ == "VERB"]
+    
     if len(verbs) != 0:
-        verbs = verbs[0]
+        # Separating out helper verbs from the main verbs. Sometimes more than
+        # one of these helper verbs can exist in a sentence, so I want to
+        # ensure that I extract the main verb that follows all those verbs.
+        if verbs[0] in ["be", "could", "can"]:
+    
+            modifiers = list( set(["could", "be", "can"]).intersection(set(verbs)) )
+            indicies = max([verbs.index(i) for i in modifiers])
+            
+            if indicies + 1 < len(verbs):
+                returnThis = verbs[indicies + 1]
+            else: 
+                returnThis = verbs[0]
+        elif verbs[0] in ["must", "should"] and len(verbs) > 1:
+            returnThis = verbs[1]
+            
+        else:    
+            returnThis = verbs[0]
     else:
         # If the sentence does not contain any words tagged as verbs, return an empty string
-        verbs = ""
-    return(verbs)
+        returnThis = ""
+    return(returnThis)
     
     
 def bs4_text_extraction(url):
@@ -157,17 +173,15 @@ er = EventRegistry(apiKey = api_key)
 #for art in q.execQuery(er, sortBy = "date"):    
 #    articles = articles.append({ "title": art["title"], "url": art["url"], "text": art["body"], "date": art["date"]}, ignore_index = True)
 
-pickle.dump(articles, open("articles.pkl", "wb"))
-
-# Export sample data
-df_sample = articles.sample(n = 100)
-df_sample.to_csv("Sample Articles.csv", index = False)
-
+#pickle.dump(articles, open("articles.pkl", "wb"))
 
 ##############################################
 # Cleaning and feature creation
 
 articles = pickle.load(open("articles.pkl", "rb"))
+
+# Export sample data
+articles.sample(n = 100).to_csv("Sample Articles.csv", index = False)
 
 articles["title"] = articles["title"].replace("&#\d+|\(|\)", "", regex = True)
 articles["title"] = articles.title.apply(lambda x: re.split("\s*(\||;|\.|\s-\s)", str(x))[0])  # split on "|", ";","."
@@ -198,7 +212,7 @@ articles["mil_subj"] = articles["subject"].apply(lambda x: 1 if "millennials" in
 #articles["domain"] = articles["url"].apply(lambda x: re.split("//(www\.)*", x)[-1].split(".")[0])
 
 # Export the cleaned object
-pickle.dump(articles, open("articles_manipulated.pkl", "wb"))
+pickle.dump(articles, open("articles.pkl", "wb"))
 
 # Extract articles about millennials
 millennial_articles = articles.loc[articles["mil_subj"] == 1]
@@ -257,6 +271,9 @@ articles_new["article_id"] = articles_new.index
 articles_new["verbs"] = articles_new["verbs"].apply(lambda x: x.lower())
 articles_new["objects"] = articles_new["objects"].apply(lambda x: x.lower())
 
+#stemmer = SnowballStemmer("english")
+#articles_new["verbs"] = articles_new["verbs"].apply(fix_be_verbs) 
+
 # Start building the final nested JSON object
 
 # Level 1: Verbs and their grouped objects
@@ -279,10 +296,9 @@ json_level2 = pd.merge(left = json_level2, right = grouped_by_articles, how = "l
 json_level2.columns = ["noun", "other_verbs", "articles"]
 
 # Level 3: Article metadata
-json_level3 = millennial_articles[["title_lower", "url", "date", "snippet"]].drop_duplicates()
+json_level3 = millennial_articles[["title_lower", "url", "date", "snippet"]].drop_duplicates(subset = "title_lower")
 json_level3["headline_valence"] = json_level3["title_lower"].apply(lambda x: analyzer.polarity_scores(x)["compound"])
 json_level3.columns = ["headline", "url", "pub_date", "snippet", "headline_valence"]
-
 
 # Create the full nested JSON object
 
@@ -297,7 +313,7 @@ for index, row in json_level2.iterrows():
         headlines.append(tempdict)
     valences = list(chain.from_iterable(valences))
     headlines = list(chain.from_iterable(headlines))
-    tmpDataFrame = tmpDataFrame.append({"noun": row["noun"], "articles_dict" : tempdict, "avg_headline_valence" : pd.np.mean(valences) }, ignore_index = True)
+    tmpDataFrame = tmpDataFrame.append({"noun": row["noun"], "articles_dict" : headlines, "avg_headline_valence" : pd.np.mean(valences) }, ignore_index = True)
 del tempdict, headline, valences, headlines, index, row
 
 json_level2 = pd.merge(left = json_level2, right = tmpDataFrame, how = "left", on = "noun").drop(columns = ["articles"]).rename(columns = {"articles_dict":"articles"})
@@ -306,14 +322,18 @@ json_level2 = pd.merge(left = json_level2, right = tmpDataFrame, how = "left", o
 tmpDataFrame = pd.DataFrame(columns = ["verb", "nouns_dict"])
 for index, row in json_level1.iterrows():
     holder = []
+    v = row["verb"]
     for noun in row["nouns"]:
         tempdf = json_level2.loc[json_level2["noun"] == noun]
-        tempdf["other_verbs"] = tempdf["other_verbs"].apply(lambda x: [i for i in x if i != row["verb"]])
+        # Keep only articles that mention both the noun AND the verb (avoid repeating articles)
+        tempdf["articles"] = tempdf["articles"].apply(lambda l_dicts: [i for i in l_dicts if v in i["headline"] ])
+        # Remove the verb from the list of "other verbs"
+        tempdf["other_verbs"] = tempdf["other_verbs"].apply(lambda x: [i for i in x if i != v])
         tempdict = tempdf.to_dict("r")
         holder.append(tempdict)
     holder = list(chain.from_iterable(holder))
     tmpDataFrame = tmpDataFrame.append({"verb":row["verb"], "nouns_dict":holder}, ignore_index = True)
-del tempdict, noun, holder, tempdf, index, row
+del tempdict, noun, holder, tempdf, index, row, v
 
 json_level1 = pd.merge(left = json_level1, right = tmpDataFrame, how = "left", on = "verb").drop(columns = ["nouns"]).rename(columns = {"nouns_dict":"nouns"})
 for_export = json_level1.to_dict("r")
@@ -329,7 +349,16 @@ with open('articles_json.json', 'w') as outfile:
 with open('articles_json.json', 'r') as f:
     testdat = json.load(f)
 
-    
+
+# Put together a list of nouns for export
+included_verbs = pd.read_csv("verbs_to_include.csv")
+tempdf = articles_new.loc[(articles_new.objects != "") & (articles_new.verbs != "")].groupby('verbs')['objects'].apply(set).reset_index()
+tempdf["objects"] = tempdf["objects"].apply(list)
+
+nouns = tempdf[tempdf["verbs"].isin(included_verbs["verbs"].tolist())]["objects"]
+nouns = pd.DataFrame(set(chain.from_iterable(nouns.tolist())))
+nouns.to_csv("included_nouns.csv", index = False)
+
 ##############################################
 # Sentiment analysis
 analyzer = SIA()
