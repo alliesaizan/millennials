@@ -65,12 +65,14 @@ def findall(sub, lst, overlap = True):
 
 pattern = "(AUX\s)*(ADV\s)*(PART\s)*(VERB\s)+(ADV\s)*(PART\s)*"
 
-def find_verb_phrases(doc):
+def find_verb_phrases(title):
     """
     This function is designed to pull verb phrases from sentences where 
     millennials are the subject of the sentence. It assumes that the first 
     verb or verb phrase will refer to actions taken by millennials.
     """
+    doc = nlp(title)
+    
     # Obtain the parts of speech tags for each word in the title
     pos_tags = " ".join([i.pos_ for i in doc])
     
@@ -95,21 +97,25 @@ def find_verb_phrases(doc):
     return(verbs)
 
 
-def find_verbs(doc):
+def find_verbs(title):
     """
     This function is designed to pull verbs from sentences. It extracts the
     first verb because we only care about sentences where
     millennials are the subject of the sentence.
-    """
+    """    
+    doc = nlp(title)
+    
     verbs = [i.lemma_ for i in doc if i.pos_ == "VERB"]
+    l_mods = ["be", "could", "can", "are", "have", "had", "were", \
+              "been", "is", "will"]
     
     if len(verbs) != 0:
         # Separating out helper verbs from the main verbs. Sometimes more than
         # one of these helper verbs can exist in a sentence, so I want to
         # ensure that I extract the main verb that follows all those verbs.
-        if verbs[0] in ["be", "could", "can"]:
+        if verbs[0] in l_mods:
     
-            modifiers = list( set(["could", "be", "can"]).intersection(set(verbs)) )
+            modifiers = list( set(l_mods).intersection(set(verbs)) )
             indicies = max([verbs.index(i) for i in modifiers])
             
             if indicies + 1 < len(verbs):
@@ -125,7 +131,7 @@ def find_verbs(doc):
         # If the sentence does not contain any words tagged as verbs, return an empty string
         returnThis = ""
     return(returnThis)
-    
+            
     
 def bs4_text_extraction(url):
     """
@@ -192,9 +198,9 @@ articles = articles[["title", "url", "text", "date", "title_lower", "tagged"]]
 articles.drop_duplicates(inplace = True)
 
 nlp = spacy.load("en_core_web_sm")
-articles["tagged"] = articles["title"].apply(nlp)
+#articles["tagged"] = articles["title"].apply(nlp)
 
-articles["verbs"] = articles["tagged"].apply(find_verbs)
+articles["verbs"] = articles["title"].apply(find_verbs)
 
 articles["objects"] = articles["tagged"].apply(find_sentence_objects)
 articles["objects"] = articles["objects"].replace("^\s+", "", regex= True)
@@ -231,8 +237,7 @@ del short_arts
 
 ##############################################
 # Initial data exploration export to CSV
-verbs = millennial_articles.verbs.tolist()
-verbs = [i.lower() for i in list(chain.from_iterable(verbs))]
+verbs = articles.verbs_text.tolist()
 verbs = set(verbs)
 verbs = list(verbs)
 
@@ -270,6 +275,7 @@ articles_new["article_id"] = articles_new.index
 
 articles_new["verbs"] = articles_new["verbs"].apply(lambda x: x.lower())
 articles_new["objects"] = articles_new["objects"].apply(lambda x: x.lower())
+
 
 #stemmer = SnowballStemmer("english")
 #articles_new["verbs"] = articles_new["verbs"].apply(fix_be_verbs) 
@@ -326,7 +332,7 @@ for index, row in json_level1.iterrows():
     for noun in row["nouns"]:
         tempdf = json_level2.loc[json_level2["noun"] == noun]
         # Keep only articles that mention both the noun AND the verb (avoid repeating articles)
-        tempdf["articles"] = tempdf["articles"].apply(lambda l_dicts: [i for i in l_dicts if v in i["headline"] ])
+        tempdf["articles"] = tempdf["articles"].apply(lambda l_dicts: [i for i in l_dicts if v == find_verbs(i["headline"]) ])
         # Remove the verb from the list of "other verbs"
         tempdf["other_verbs"] = tempdf["other_verbs"].apply(lambda x: [i for i in x if i != v])
         tempdict = tempdf.to_dict("r")
@@ -343,7 +349,7 @@ for_export = json_level1.to_dict("r")
 #for_export = re.sub('\[\{\'noun\'', '\{noun', for_export)
 #for_export = re.sub("\\\\", "", for_export)
     
-with open('articles_json.json', 'w') as outfile:
+with open('articles_v2.json', 'w') as outfile:
     json.dump(for_export, outfile)
     
 with open('articles_json.json', 'r') as f:
