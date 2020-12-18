@@ -14,6 +14,6 @@ I used the [Event Registry News API](https://newsapi.ai/) to extract news articl
 ## Part-of-speech tagging
 Using NLP methods such as part-of-speech tagging to further categorize scraped articles and identify sentence objects 
 
-# Transforming the data into a consumable format for JavsScript
+## Transforming the data into a consumable format for JavsScript
 Transforming the text data into a multilevel structure for JavaScript parsing
   
