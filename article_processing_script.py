@@ -183,7 +183,7 @@ er = EventRegistry(apiKey = api_key)
 #    lang = "eng",
 #    keywordsLoc="title",
 #    dateStart = datetime.date(2015, 6, 16),
-#    dateEnd = datetime.date(2015, 10, 11),
+#    dateEnd = datetime.date(2019, 6, 1),
 ##    startSourceRankPercentile = 0,
 ##    endSourceRankPercentile = 20,
 #    dataType = ["news"])
