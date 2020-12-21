@@ -1,7 +1,5 @@
 # The Millennial Question (Data Work) :thinking:
 
-![snapshop](article_snapshot.png)
-
 ## Overview
 This repository contains the programming script that cleaned the data behind the Pudding article named "The Millennial Question", published in October 2019.The finished article can be found here: https://pudding.cool/2019/09/millennials/. 
 
