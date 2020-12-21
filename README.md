@@ -7,7 +7,7 @@ This repository contains the programming script that cleaned the data behind the
 I used the [Event Registry News API](https://newsapi.ai/) to extract news articles with "millennial(s)" in the article title. I focused the API call on articles published from 2015-2019. A sample of articles extracted in the API call can be found in the file *Sample Articles.csv*.
 
 ## Data Cleaning Process
-All data processing takes place in the *article_processing_script.py* file
+All data processing takes place in the *article_processing_script.py* file.
 
 ## Part-of-speech tagging
 The goal of the data collection was to identify the actions Millennials were taking. So if an article reported about how Millennials were not buying napkins, I needed to identify (1) that Millennials were the subject of the sentence, (2) that the action they are taking is "not buying", and (3) that the object of that action is "napkins". I used the scrapy package to identify the following parts-of-speech in each article headline:
