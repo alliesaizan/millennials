@@ -56,60 +56,6 @@ def find_sentence_objects(tagged):
     except:
         objs = ""
     return(objs)
- 
-
-#def findall(sub, lst, overlap = True):
-#    """
-#    This function finds the indicies where a sub-list occurs in a larger list.
-#    I adapted this function from:
-#    http://paddy3118.blogspot.com/2014/06/indexing-sublist-of-list-way-you-index.html
-#    """
-#    sublen = len(sub)
-#    firstthing = sub[0] if sub else []
-#    indices, indx = [], -1
-#    while True:
-#        try:
-#            indx = lst.index(firstthing, indx + 1)
-#        except ValueError:
-#            break
-#        if sub == lst[indx : indx + sublen]:
-#            indices.append(indx)
-#            if not overlap:
-#                indx += sublen - 1
-#    return(indices)
-
-#pattern = "(AUX\s)*(ADV\s)*(PART\s)*(VERB\s)+(ADV\s)*(PART\s)*"
-
-#def find_verb_phrases(title):
-#    """
-#    This function is designed to pull verb phrases from sentences where 
-#    millennials are the subject of the sentence. It assumes that the first 
-#    verb or verb phrase will refer to actions taken by millennials.
-#    """
-#    doc = nlp(title)
-#    
-#    # Obtain the parts of speech tags for each word in the title
-#    pos_tags = " ".join([i.pos_ for i in doc])
-#    
-#    # If the verb phrase pattern matches anywhere in the part of speech tags:
-#    if re.search(pattern, pos_tags): 
-#        # Find the matching tags and extract them as a list of tags.
-#        compiled = re.search(pattern, pos_tags)
-#        compare_this = compiled.group().split()
-#        # Compare this list of tags against the full list of tags for all the words in the title.
-#        # Extract the indicies where the tags occur in the list.
-#        result = findall(compare_this, pos_tags.split())[0]
-#        # In the title, pull out the words with matching indicies.
-#        verbs = " ".join([i.text for i in doc][result:result + len(compare_this)])
-#    else:
-#        # If the title does not contain any verb phrases, just extract the first verb in the sentence
-#        verbs = [i.text for i in doc if i.pos_ == "VERB"]
-#        if len(verbs) != 0:
-#            verbs = verbs[0]
-#        else:
-#            # If the sentence does not contain any words tagged as verbs, return an empty string
-#            verbs = ""
-#    return(verbs)
 
 
 def find_verbs(doc):
@@ -172,7 +118,7 @@ def find_valences(l, analyzer):
 
 
 ##############################################
-# Instantiate Event Registry API
+# Instantiate Event Registry API - commented out so I do not accidentally incur fees
 
 api_key = "b3b5aa5d-a173-4102-97e6-227c795f7349"
 
@@ -188,6 +134,7 @@ er = EventRegistry(apiKey = api_key)
 ##    endSourceRankPercentile = 20,
 #    dataType = ["news"])
 
+# The code below is how I saved the initial article pull - it is commented out but remains in the script to show my thought process.
 #articles = pd.DataFrame(columns = ["title", "url", "text", "date"])
 
 #for art in q.execQuery(er, sortBy = "date"):    
@@ -221,15 +168,6 @@ articles["objects"] = articles["objects"].replace("^\s+", "", regex= True)
 
 articles["subject"] = articles["tagged"].apply(lambda x: [token.text.lower() for token in x if token.dep_ in ["nsubj", "ROOT"]])
 articles["mil_subj"] = articles["subject"].apply(lambda x: 1 if "millennial" in str(x).lower() else 0)
-
-# Find the publisher in the url domain
-#publications = pd.read_csv("publications.csv")
-#websites = publications["domain"].tolist()
-#
-#domains = [re.split("//(www\.)*", x)[-1] for x in websites]
-#domains = [x.split(".")[0] for x in domains]
-#
-#articles["domain"] = articles["url"].apply(lambda x: re.split("//(www\.)*", x)[-1].split(".")[0])
 
 # Export the cleaned object
 pickle.dump(articles, open("articles.pkl", "wb"))
@@ -278,9 +216,6 @@ articles_new = articles_new.reset_index()
 
 articles_new = articles_new.drop(labels = "level_2", axis = 1).drop_duplicates()
 articles_new.columns = ["title_lower", "verbs", "objects"]
-
-#verbs = millennial_articles.groupby("verbs")["title_lower"].count().sort_values(ascending = False)
-#millennial_articles["valences"] = millennial_articles["title_lower"].apply(lambda x: analyzer.polarity_scores(x)["compound"])
 
 articles_new["article_id"] = articles_new.index
 
@@ -353,10 +288,6 @@ del tempdict, noun, holder, tempdf, index, row, v
 new_json = pd.merge(left = json_level1, right = tmpDataFrame, how = "left", on = "verb").drop(columns = ["nouns"]).rename(columns = {"nouns_dict":"nouns"})
 for_export = new_json.to_dict("r")
 
-# Removing extra brackets
-#for_export = re.sub("\}\],\{noun", "\},\{noun", for_export)
-#for_export = re.sub('\[\{\'noun\'', '\{noun', for_export)
-#for_export = re.sub("\\\\", "", for_export)
     
 with open('articles_v2.json', 'w') as outfile:
     json.dump(for_export, outfile)
@@ -389,7 +320,7 @@ for item in dat:
             missings = missings.append({"verb": item["verb"], "noun":level2["noun"]}, ignore_index = True)
 
 ##############################################
-# Sentiment analysis
+# Sentiment analysis - identifying the sentiment of the action verbs in sentences where millennials are the subject
 analyzer = SIA()
 millennial_articles["polarity"] = millennial_articles["text"].apply(lambda x: analyzer.polarity_scores(x)["compound"])
 negative_articles = millennial_articles.loc[millennial_articles["polarity"] < 0]
